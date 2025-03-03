@@ -2,14 +2,19 @@
 #include <arpa/inet.h>
 #include <poll.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+
+const char* host = NULL;
+const char* port = "6667";
+const char* fifo = "/tmp/evnotif";
 
 int main(int argc, char** argv){
-	const char* host = NULL;
-	const char* port = "6667";
-
 	struct addrinfo hints;
 	struct addrinfo* result;
 	struct addrinfo* rp;
@@ -18,11 +23,17 @@ int main(int argc, char** argv){
 	int sfd;
 	int i;
 
+	struct pollfd* pfds = malloc(sizeof(*pfds) * 2);
+
+	for(i = 0; i < 2; i++) pfds[i].events = POLLIN | POLLPRI;
+
 	for(i = 1; i < argc; i++){
 		if(strcmp(argv[i], "--host") == 0){
 			host = argv[++i];
 		}else if(strcmp(argv[i], "--port") == 0){
 			port = argv[++i];
+		}else if(strcmp(argv[i], "--fifo") == 0){
+			fifo = argv[++i];
 		}else{
 			fprintf(stderr, "%s: invalid argument\n", argv[i]);
 			return 1;
@@ -38,7 +49,19 @@ int main(int argc, char** argv){
 		fprintf(stderr, "Port is empty\n");
 		s = 1;
 	}
+	if(fifo == NULL){
+		fprintf(stderr, "FIFO is empty\n");
+		s = 1;
+	}
 	if(s != 0) return s;
+
+	remove(fifo);
+	mkfifo(fifo, 0666);
+	pfds[0].fd = open(fifo, O_RDWR);
+	if(pfds[0].fd == -1){
+		fprintf(stderr, "open: %s\n", strerror(errno));
+		return 1;
+	}
 
 	memset(&hints, 0, sizeof(hints));
 
@@ -63,6 +86,11 @@ int main(int argc, char** argv){
 		fprintf(stderr, "Could not connect\n");
 		return 1;
 	}
+	pfds[1].fd = sfd;
 	printf("Connected\n");
+	while(1){
+		s = poll(pfds, 1, 1000);
+		if(s < 0) break;
+	}
 	return 0;
 }

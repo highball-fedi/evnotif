@@ -89,7 +89,7 @@ int main(int argc, char** argv){
 	pfds[1].fd = sfd;
 	printf("Connected\n");
 	while(1){
-		s = poll(pfds, 1, 1000);
+		s = poll(pfds, 2, 1000);
 		if(s < 0) break;
 	}
 	return 0;

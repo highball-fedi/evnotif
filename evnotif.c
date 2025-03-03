@@ -16,11 +16,16 @@
 const char* host = NULL;
 const char* port = "6667";
 const char* fifo = "/tmp/evnotif";
+const char* user = "EvNotif";
+const char* channel = NULL;
 
 void do_fifo(int fd){
 }
 
 void do_irc(int fd){
+	char c;
+	recv(fd, &c, 1, 0);
+	fwrite(&c, 1, 1, stdout);
 }
 
 int main(int argc, char** argv){
@@ -44,6 +49,10 @@ int main(int argc, char** argv){
 			port = argv[++i];
 		}else if(strcmp(argv[i], "--fifo") == 0){
 			fifo = argv[++i];
+		}else if(strcmp(argv[i], "--user") == 0){
+			user = argv[++i];
+		}else if(strcmp(argv[i], "--channel") == 0){
+			channel = argv[++i];
 		}else{
 			fprintf(stderr, "%s: invalid argument\n", argv[i]);
 			return 1;
@@ -61,6 +70,14 @@ int main(int argc, char** argv){
 	}
 	if(fifo == NULL){
 		fprintf(stderr, "FIFO is empty\n");
+		s = 1;
+	}
+	if(user == NULL){
+		fprintf(stderr, "User is empty\n");
+		s = 1;
+	}
+	if(channel == NULL){
+		fprintf(stderr, "Channel is empty\n");
 		s = 1;
 	}
 	if(s != 0) return s;
@@ -99,6 +116,21 @@ int main(int argc, char** argv){
 	pfds[FIFO].fd = ffd;
 	pfds[IRC].fd = sfd;
 	printf("Connected\n");
+	send(sfd, "USER ", 5, 0);
+	send(sfd, user, strlen(user), 0);
+	send(sfd, " ", 1, 0);
+	send(sfd, user, strlen(user), 0);
+	send(sfd, " ", 1, 0);
+	send(sfd, user, strlen(user), 0);
+	send(sfd, " ", 1, 0);
+	send(sfd, user, strlen(user), 0);
+	send(sfd, "\r\n", 2, 0);
+	send(sfd, "NICK ", 5, 0);
+	send(sfd, user, strlen(user), 0);
+	send(sfd, "\r\n", 2, 0);
+	send(sfd, "JOIN ", 5, 0);
+	send(sfd, channel, strlen(channel), 0);
+	send(sfd, "\r\n", 2, 0);
 	while(1){
 		s = poll(pfds, 2, 1000);
 		if(s < 0) break;

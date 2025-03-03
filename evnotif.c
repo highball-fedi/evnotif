@@ -63,5 +63,6 @@ int main(int argc, char** argv){
 		fprintf(stderr, "Could not connect\n");
 		return 1;
 	}
+	printf("Connected\n");
 	return 0;
 }

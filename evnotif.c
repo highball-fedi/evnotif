@@ -10,6 +10,9 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define FIFO 0
+#define IRC 1
+
 const char* host = NULL;
 const char* port = "6667";
 const char* fifo = "/tmp/evnotif";
@@ -57,8 +60,8 @@ int main(int argc, char** argv){
 
 	remove(fifo);
 	mkfifo(fifo, 0666);
-	pfds[0].fd = open(fifo, O_RDWR);
-	if(pfds[0].fd == -1){
+	pfds[FIFO].fd = open(fifo, O_RDWR);
+	if(pfds[FIFO].fd == -1){
 		fprintf(stderr, "open: %s\n", strerror(errno));
 		return 1;
 	}
@@ -86,11 +89,17 @@ int main(int argc, char** argv){
 		fprintf(stderr, "Could not connect\n");
 		return 1;
 	}
-	pfds[1].fd = sfd;
+	pfds[IRC].fd = sfd;
 	printf("Connected\n");
 	while(1){
 		s = poll(pfds, 2, 1000);
 		if(s < 0) break;
+		if(s > 0){
+			for(i = 0; i < 2; i++){
+				if(pfds[i].revents & POLLIN){
+				}
+			}
+		}
 	}
 	return 0;
 }

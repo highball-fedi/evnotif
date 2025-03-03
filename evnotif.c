@@ -17,6 +17,12 @@ const char* host = NULL;
 const char* port = "6667";
 const char* fifo = "/tmp/evnotif";
 
+void do_fifo(int fd){
+}
+
+void do_irc(int fd){
+}
+
 int main(int argc, char** argv){
 	struct addrinfo hints;
 	struct addrinfo* result;
@@ -24,6 +30,7 @@ int main(int argc, char** argv){
 
 	int s;
 	int sfd;
+	int ffd;
 	int i;
 
 	struct pollfd* pfds = malloc(sizeof(*pfds) * 2);
@@ -60,8 +67,8 @@ int main(int argc, char** argv){
 
 	remove(fifo);
 	mkfifo(fifo, 0666);
-	pfds[FIFO].fd = open(fifo, O_RDWR);
-	if(pfds[FIFO].fd == -1){
+	ffd = open(fifo, O_RDWR);
+	if(ffd == -1){
 		fprintf(stderr, "open: %s\n", strerror(errno));
 		return 1;
 	}
@@ -89,6 +96,7 @@ int main(int argc, char** argv){
 		fprintf(stderr, "Could not connect\n");
 		return 1;
 	}
+	pfds[FIFO].fd = ffd;
 	pfds[IRC].fd = sfd;
 	printf("Connected\n");
 	while(1){
@@ -97,6 +105,8 @@ int main(int argc, char** argv){
 		if(s > 0){
 			for(i = 0; i < 2; i++){
 				if(pfds[i].revents & POLLIN){
+					if(i == FIFO) do_fifo(ffd);
+					if(i == IRC) do_irc(sfd);
 				}
 			}
 		}

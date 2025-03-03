@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <netinet/tcp.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -19,13 +20,60 @@ const char* fifo = "/tmp/evnotif";
 const char* user = "EvNotif";
 const char* channel = NULL;
 
-void do_fifo(int fd){
+int sfd;
+int ffd;
+
+int do_fifo(void){
+	return 0;
 }
 
-void do_irc(int fd){
+int irc_sp = 0;
+int irc_host = -1;
+char irc_job = 0;
+char* irc_buffer;
+int do_irc(void){
 	char c;
-	recv(fd, &c, 1, 0);
-	fwrite(&c, 1, 1, stdout);
+	if(recv(sfd, &c, 1, 0) <= 0) return 1;
+	if(c == ' ' && irc_sp == 0){
+		irc_sp++;
+	}else if(c == ' ' && irc_sp == 1){
+		if(strcasecmp(irc_buffer, "PING") == 0){
+			irc_job = 'P';
+		}
+		free(irc_buffer);
+		irc_buffer = malloc(1);
+		irc_buffer[0] = 0;
+		irc_sp++;
+	}else if(c == '\r'){
+	}else if(c == '\n'){
+		irc_sp = 0;
+		irc_host = -1;
+		if(irc_job == 'P'){
+			send(sfd, "PONG ", 5, 0);
+			send(sfd, ":not.configured", strlen(":not.configured"), 0);
+			send(sfd, "\r\n", 2, 0);
+		}
+		printf("[%s]\n", irc_buffer);
+		irc_job = 0;
+		free(irc_buffer);
+		irc_buffer = malloc(1);
+		irc_buffer[0] = 0;
+	}else{
+		if(irc_host == -1){
+			irc_host = c == ':' ? 1 : 0;
+			if(!irc_host) irc_sp++;
+		}
+		if(irc_sp > 0){
+			int len = strlen(irc_buffer);
+			char* old = irc_buffer;
+			irc_buffer = malloc(len + 2);
+			strcpy(irc_buffer, old);
+			free(old);
+			irc_buffer[len] = c;
+			irc_buffer[len + 1] = 0;
+		}
+	}
+	return 0;
 }
 
 int main(int argc, char** argv){
@@ -34,11 +82,12 @@ int main(int argc, char** argv){
 	struct addrinfo* rp;
 
 	int s;
-	int sfd;
-	int ffd;
 	int i;
 
 	struct pollfd* pfds = malloc(sizeof(*pfds) * 2);
+
+	irc_buffer = malloc(1);
+	irc_buffer[0] = 0;
 
 	for(i = 0; i < 2; i++) pfds[i].events = POLLIN | POLLPRI;
 
@@ -103,7 +152,9 @@ int main(int argc, char** argv){
 		return 1;
 	}
 	for(rp = result; rp != NULL; rp = rp->ai_next){
+		int yes = 1;
 		sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
 		if(sfd == -1) continue;
 		if(connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) break;
 		close(sfd);
@@ -135,12 +186,14 @@ int main(int argc, char** argv){
 		s = poll(pfds, 2, 1000);
 		if(s < 0) break;
 		if(s > 0){
+			s = 0;
 			for(i = 0; i < 2; i++){
 				if(pfds[i].revents & POLLIN){
-					if(i == FIFO) do_fifo(ffd);
-					if(i == IRC) do_irc(sfd);
+					if(i == FIFO) s += do_fifo();
+					if(i == IRC) s += do_irc();
 				}
 			}
+			if(s > 0) break;
 		}
 	}
 	return 0;

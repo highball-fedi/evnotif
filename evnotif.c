@@ -17,13 +17,34 @@
 const char* host = NULL;
 const char* port = "6667";
 const char* fifo = "/tmp/evnotif";
-const char* user = "EvNotif";
+const char* user = "evnotif";
 const char* channel = NULL;
 
 int sfd;
 int ffd;
 
+char* fifo_buffer;
 int do_fifo(void){
+	char c;
+	if(read(ffd, &c, 1) <= 0) return 1;
+	if(c == '\n'){
+		send(sfd, "PRIVMSG ", 8, 0);
+		send(sfd, channel, strlen(channel), 0);
+		send(sfd, " :", 2, 0);
+		send(sfd, fifo_buffer, strlen(fifo_buffer), 0);
+		send(sfd, "\r\n", 2, 0);
+		free(fifo_buffer);
+		fifo_buffer = malloc(1);
+		fifo_buffer[0] = 0;
+	}else{
+		int len = strlen(fifo_buffer);
+		char* old = fifo_buffer;
+		fifo_buffer = malloc(len + 2);
+		strcpy(fifo_buffer, old);
+		free(old);
+		fifo_buffer[len] = c;
+		fifo_buffer[len + 1] = 0;
+	}
 	return 0;
 }
 
@@ -50,10 +71,9 @@ int do_irc(void){
 		irc_host = -1;
 		if(irc_job == 'P'){
 			send(sfd, "PONG ", 5, 0);
-			send(sfd, ":not.configured", strlen(":not.configured"), 0);
+			send(sfd, irc_buffer, strlen(irc_buffer), 0);
 			send(sfd, "\r\n", 2, 0);
 		}
-		printf("[%s]\n", irc_buffer);
 		irc_job = 0;
 		free(irc_buffer);
 		irc_buffer = malloc(1);
@@ -88,6 +108,9 @@ int main(int argc, char** argv){
 
 	irc_buffer = malloc(1);
 	irc_buffer[0] = 0;
+
+	fifo_buffer = malloc(1);
+	fifo_buffer[0] = 0;
 
 	for(i = 0; i < 2; i++) pfds[i].events = POLLIN | POLLPRI;
 
